@@ -47,7 +47,7 @@ class SingleQuditDevice(Device):
         super().__init__(wires=1,shots=shots)
         self.username = username
         self.password = password
-        self.url_prefix = "https://qsimsim.synqs.org/shots/"
+        self.url_prefix = "http://qsimsim.synqs.org/shots/"
 
         # dimension of the qudit
         self.qdim = 2
@@ -70,7 +70,7 @@ class SingleQuditDevice(Device):
         operation_class = self._operation_map[operation]
         if issubclass(operation_class, SingleQuditOperation):
             l_obj, qdim = operation_class.qudit_operator(par)
-            
+
             # qdim is only non zero if the load gate is implied.
             # so only in this case we will change it.
             if qdim:
@@ -79,29 +79,29 @@ class SingleQuditDevice(Device):
         else:
             raise NotImplementedError()
 
-    def expval(self, observable, wires, par):
+    def expval(self,  observable=None, wires=None, par=None, job_id=None):
         """
         Retrieve the requested observable expectation value.
         """
-
+        assert job_id!=None
         try:
-            shots = self.sample(observable, wires, par)
+            shots = self.sample(observable, wires, par, job_id)
             return shots.mean()
         except:
             raise NotImplementedError()
 
-    def var(self, observable, wires, par):
+    def var(self, observable=None, wires=None, par=None, job_id=None):
         """
         Retrieve the requested observable variance.
         """
-
+        assert job_id!=None
         try:
-            shots = self.sample(observable, wires, par)
+            shots = self.sample(observable, wires, par, job_id)
             return shots.var()
         except:
             raise NotImplementedError()
 
-    def sample(self, observable, wires, par):
+    def sample_1(self, observable, wires, par):
         """
         Retrieve the requested observable expectation value.
         """
@@ -131,6 +131,38 @@ class SingleQuditDevice(Device):
             # and give back the appropiate observable.
             shots = observable_class.qudit_operator(shots,self.qdim)
             return shots
+        raise NotImplementedError()
+
+    def sample(self, observable=None, wires=None, par=None, job_id=None):
+        """
+        Retrieve the requested observable expectation value.
+        """
+        observable_class = self._observable_map[observable]
+        if issubclass(observable_class, SingleQuditObservable):
+            if job_id==None:
+                # submit the job
+                m_obj = ('measure', [0], [])
+                url= self.url_prefix + "post_job/"
+                self.job_payload['experiment_0']['instructions'].append(m_obj)
+                job_response = requests.post(url, data={'json':json.dumps(self.job_payload),
+                                                             'username': self.username,'password':self.password})
+
+                job_id = (job_response.json())['job_id']
+                return job_id
+            else:
+                # obtain the job result
+                result_payload = {'job_id': job_id}
+                url= self.url_prefix + "get_job_result/"
+
+                result_response = requests.get(url, params={'json':json.dumps(result_payload),
+                                                            'username': self.username,'password':self.password})
+                results_dict = json.loads(result_response.text)
+                shots = results_dict["results"][0]['data']['memory']
+                shots = np.array([int(shot) for shot in shots])
+
+                # and give back the appropiate observable.
+                shots = observable_class.qudit_operator(shots,self.qdim)
+                return shots
         raise NotImplementedError()
 
     @property

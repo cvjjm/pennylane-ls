@@ -42,7 +42,7 @@ class load(SingleQuditOperation):
     @classmethod
     def qudit_operator(cls, par):
         l_obj = ('load', [0], par)
-        qdim = par[0]+1
+        qdim = par[0]
         return l_obj, qdim
 
 class rLx(SingleQuditOperation):
